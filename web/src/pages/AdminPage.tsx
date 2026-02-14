@@ -14,10 +14,12 @@ import {
 } from 'recharts';
 import { generateDailyInsights } from '../lib/ai';
 import { createPatient, getDashboardStats, getPatientHistory } from '../lib/api';
+import type { DailyInsightsResponse, DashboardStats, InsightSource } from '../lib/types';
 
 export function AdminPage() {
-  const [stats, setStats] = useState<Awaited<ReturnType<typeof getDashboardStats>> | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
   const [hnxSearch, setHnxSearch] = useState('');
   const [history, setHistory] = useState<Awaited<ReturnType<typeof getPatientHistory>> | null>(null);
@@ -29,8 +31,9 @@ export function AdminPage() {
   const [createMessage, setCreateMessage] = useState<string | null>(null);
 
   const [insightLoading, setInsightLoading] = useState(false);
-  const [insightText, setInsightText] = useState('');
-  const [actions, setActions] = useState<string[]>([]);
+  const [insight, setInsight] = useState<DailyInsightsResponse | null>(null);
+  const [insightSource, setInsightSource] = useState<InsightSource>(null);
+  const [insightError, setInsightError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadStats = async () => {
@@ -39,6 +42,7 @@ export function AdminPage() {
     try {
       const data = await getDashboardStats();
       setStats(data);
+      setLastUpdatedAt(new Date().toISOString());
     } catch {
       setError('Failed to load dashboard stats.');
     } finally {
@@ -93,7 +97,7 @@ export function AdminPage() {
   const generateSummary = async () => {
     if (!stats) return;
     setInsightLoading(true);
-    setError(null);
+    setInsightError(null);
     try {
       const result = await generateDailyInsights({
         date: new Date().toISOString(),
@@ -108,14 +112,24 @@ export function AdminPage() {
         },
       });
 
-      setInsightText(result.executive_summary);
-      setActions(result.bullet_actions);
-    } catch {
-      setError('Could not generate AI insight.');
+      const source: InsightSource = result.executive_summary.startsWith('Operational summary for') ? 'fallback' : 'gemini';
+      setInsight(result);
+      setInsightSource(source);
+    } catch (ex) {
+      const message = ex instanceof Error ? ex.message : 'Could not generate AI insight.';
+      setInsightError(message);
     } finally {
       setInsightLoading(false);
     }
   };
+
+  const canGenerateSummary = Boolean(stats) && !insightLoading;
+
+  const formattedLastUpdated = useMemo(() => {
+    if (!lastUpdatedAt) return null;
+    const timestamp = new Date(lastUpdatedAt);
+    return Number.isNaN(timestamp.getTime()) ? null : timestamp.toLocaleString();
+  }, [lastUpdatedAt]);
 
   return (
     <div className="space-y-4">
@@ -126,9 +140,10 @@ export function AdminPage() {
         <button className="rounded-lg bg-brand-600 px-4 py-2 text-white" onClick={loadStats} disabled={loadingStats}>
           {loadingStats ? 'Refreshing...' : 'Refresh KPI'}
         </button>
-        <button className="rounded-lg border px-4 py-2" onClick={generateSummary} disabled={!stats || insightLoading}>
+        <button className="rounded-lg border px-4 py-2" onClick={generateSummary} disabled={!canGenerateSummary}>
           {insightLoading ? 'Generating...' : 'Generate AI Summary'}
         </button>
+        {formattedLastUpdated && <p className="text-sm text-slate-500 self-center">Last updated: {formattedLastUpdated}</p>}
       </div>
 
       <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
@@ -251,17 +266,38 @@ export function AdminPage() {
         )}
       </div>
 
-      {insightText && (
-        <div className="rounded-xl border bg-white p-4 space-y-3">
+      <div className="rounded-xl border bg-white p-4 space-y-3" aria-live="polite">
+        <div className="flex items-center justify-between gap-3">
           <h3 className="font-semibold">AI Daily Executive Insight</h3>
-          <p className="whitespace-pre-line text-sm text-slate-700">{insightText}</p>
-          <ul className="list-disc pl-5 text-sm">
-            {actions.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+          {insightSource && (
+            <span className="rounded border px-2 py-1 text-xs uppercase text-slate-600">Source: {insightSource}</span>
+          )}
         </div>
-      )}
+
+        {insightLoading && <p className="text-sm text-slate-600">Generating...</p>}
+
+        {!insightLoading && insightError && (
+          <div className="space-y-2">
+            <p className="text-sm text-red-700">{insightError}</p>
+            <button className="rounded-md border px-3 py-1 text-sm" onClick={generateSummary} disabled={!stats || insightLoading}>
+              Retry
+            </button>
+          </div>
+        )}
+
+        {!insightLoading && !insightError && !insight && <p className="text-sm text-slate-500">No summary yet.</p>}
+
+        {!insightLoading && !insightError && insight && (
+          <>
+            <p className="whitespace-pre-line text-sm text-slate-700">{insight.executive_summary}</p>
+            <ul className="list-disc pl-5 text-sm">
+              {insight.bullet_actions.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
     </div>
   );
 }

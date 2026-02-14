@@ -32,7 +32,16 @@ export async function generateDailyInsights(payload: {
   });
 
   if (!res.ok) {
-    throw new Error('Failed to generate daily insights');
+    let detail = 'Failed to generate daily insights';
+    try {
+      const body = (await res.json()) as { detail?: string };
+      if (body?.detail) {
+        detail = body.detail;
+      }
+    } catch {
+      detail = 'Failed to generate daily insights';
+    }
+    throw new Error(detail);
   }
 
   return (await res.json()) as DailyInsightsResponse;

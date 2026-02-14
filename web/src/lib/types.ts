@@ -79,3 +79,35 @@ export type DailyInsightsResponse = {
   executive_summary: string;
   bullet_actions: string[];
 };
+
+export type InsightSource = 'gemini' | 'fallback' | null;
+
+export type DashboardByDoctor = {
+  doctor_id: string;
+  doctor_name: string;
+  queue: number;
+};
+
+export type DashboardBySpid = {
+  spid: string;
+  visits: number;
+  waiting: number;
+};
+
+export type DashboardHourlyTrend = {
+  hour: string;
+  visits: number;
+};
+
+export type DashboardStats = {
+  totalVisitsToday: number;
+  totalWaitingNow: number;
+  avgPredictedWait: number;
+  busiestSpid: string;
+  busiestDoctor: string;
+  cancelledCount: number;
+  byDoctor: DashboardByDoctor[];
+  bySpid: DashboardBySpid[];
+  hourlyTrend: DashboardHourlyTrend[];
+  peakTime: string;
+};

@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import type {
   Appointment,
+  DashboardStats,
   Doctor,
   NotificationItem,
   Patient,
@@ -285,7 +286,7 @@ export async function updateAppointmentStatus(appointmentId: string, status: App
   if (error) throw error;
 }
 
-export async function getDashboardStats() {
+export async function getDashboardStats(): Promise<DashboardStats> {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
   const startIso = startOfDay.toISOString();
