@@ -13,7 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 import { generateDailyInsights } from '../lib/ai';
-import { getDashboardStats, getPatientHistory } from '../lib/api';
+import { createPatient, getDashboardStats, getPatientHistory } from '../lib/api';
 
 export function AdminPage() {
   const [stats, setStats] = useState<Awaited<ReturnType<typeof getDashboardStats>> | null>(null);
@@ -21,6 +21,12 @@ export function AdminPage() {
 
   const [hnxSearch, setHnxSearch] = useState('');
   const [history, setHistory] = useState<Awaited<ReturnType<typeof getPatientHistory>> | null>(null);
+  const [newHnx, setNewHnx] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newDob, setNewDob] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createMessage, setCreateMessage] = useState<string | null>(null);
 
   const [insightLoading, setInsightLoading] = useState(false);
   const [insightText, setInsightText] = useState('');
@@ -51,6 +57,38 @@ export function AdminPage() {
   };
 
   const avgPredictedWait = useMemo(() => stats?.avgPredictedWait ?? 0, [stats]);
+
+  const registerPatient = async () => {
+    const hnx = newHnx.trim();
+    if (!hnx) {
+      setCreateMessage('HN is required.');
+      return;
+    }
+
+    try {
+      setCreateLoading(true);
+      setError(null);
+      setCreateMessage(null);
+
+      const created = await createPatient({
+        hnx,
+        display_name: newName,
+        dob: newDob || undefined,
+        phone: newPhone,
+      });
+
+      setCreateMessage(`Patient created successfully. HN: ${created.hnx}`);
+      setHnxSearch(created.hnx);
+      setNewHnx('');
+      setNewName('');
+      setNewDob('');
+      setNewPhone('');
+    } catch {
+      setCreateMessage('Could not create patient. Check if HN already exists or RLS insert policy is blocking anon access.');
+    } finally {
+      setCreateLoading(false);
+    }
+  };
 
   const generateSummary = async () => {
     if (!stats) return;
@@ -147,12 +185,53 @@ export function AdminPage() {
       </div>
 
       <div className="rounded-xl border bg-white p-4 space-y-3">
+        <h3 className="font-semibold">Register New Patient (Admin/Nurse)</h3>
+        <div className="grid gap-2 md:grid-cols-2">
+          <input
+            className="rounded-md border px-3 py-2"
+            placeholder="HN *"
+            value={newHnx}
+            onChange={(e) => setNewHnx(e.target.value)}
+          />
+          <input
+            className="rounded-md border px-3 py-2"
+            placeholder="Display name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+          <input
+            type="date"
+            className="rounded-md border px-3 py-2"
+            value={newDob}
+            onChange={(e) => setNewDob(e.target.value)}
+          />
+          <input
+            className="rounded-md border px-3 py-2"
+            placeholder="Phone"
+            value={newPhone}
+            onChange={(e) => setNewPhone(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <button className="rounded-md bg-brand-600 px-4 py-2 text-white" onClick={registerPatient} disabled={createLoading}>
+            {createLoading ? 'Creating...' : 'Create Patient'}
+          </button>
+          {createMessage && <p className="text-sm text-slate-600">{createMessage}</p>}
+        </div>
+      </div>
+
+      <div className="rounded-xl border bg-white p-4 space-y-3">
         <h3 className="font-semibold">Patient Search by HN</h3>
         <div className="flex gap-2">
           <input
             className="w-full rounded-md border px-3 py-2"
             value={hnxSearch}
             onChange={(e) => setHnxSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                void loadHistory();
+              }
+            }}
             placeholder="Search HN"
           />
           <button className="rounded-md border px-4 py-2" onClick={loadHistory}>

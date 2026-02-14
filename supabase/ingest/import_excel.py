@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import re
 from pathlib import Path
 from datetime import datetime
 from typing import Any
@@ -49,6 +50,37 @@ def clean_int(value: Any) -> int | None:
     return int(round(num))
 
 
+def normalize_column_name(name: str) -> str:
+    return re.sub(r'[^a-z0-9]+', '_', str(name).strip().lower()).strip('_')
+
+
+def clean_cell_value(value: Any) -> Any:
+    if pd.isna(value):
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if hasattr(value, 'isoformat') and not isinstance(value, (str, bytes)):
+        try:
+            return value.isoformat()
+        except Exception:
+            pass
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and not math.isfinite(value):
+            return None
+        return value
+    return str(value).strip()
+
+
+def parse_bp(value: Any) -> tuple[int | None, int | None]:
+    if pd.isna(value):
+        return None, None
+    text = str(value).strip()
+    match = re.match(r'^(\d{2,3})\s*/\s*(\d{2,3})$', text)
+    if not match:
+        return None, None
+    return int(match.group(1)), int(match.group(2))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='Import screening CSV/Excel subset into Supabase')
     parser.add_argument('--file', required=True, help='Path to CSV or Excel file')
@@ -73,19 +105,20 @@ def main() -> None:
     else:
         raise RuntimeError('Unsupported file type. Use .csv, .xlsx, .xlsm, or .xls')
 
-    df.columns = [str(c).strip().lower() for c in df.columns]
+    df.columns = [normalize_column_name(c) for c in df.columns]
 
     col_map = {
         'hnx': ['hnx', 'hn', 'hospital_number'],
-        'modify_time': ['modify_time', 'modified_time', 'screen_time', 'visit_time', 'datetime'],
-        'spid': ['spid', 'clinic', 'service_point'],
+        'modify_time': ['modify_time', 'modify_ti', 'modified_time', 'screen_time', 'visit_time', 'datetime'],
+        'spid': ['spid', 'measure_spid', 'clinic', 'service_point'],
         'weight': ['weight', 'wt'],
         'height': ['height', 'ht'],
         'bmi': ['bmi'],
         'sbp': ['sbp', 'systolic'],
         'dbp': ['dbp', 'diastolic'],
-        'chief_complaint': ['chief_complaint', 'chief complaint', 'cc'],
-        'illness_detail': ['illness_detail', 'illness detail', 'detail'],
+        'bp': ['bp', 'b_p'],
+        'chief_complaint': ['chief_complaint', 'chief_complaints', 'nurse_chief_complaint', 'cc'],
+        'illness_detail': ['illness_detail', 'nurse_patient_illness', 'detail'],
     }
 
     resolved: dict[str, str] = {}
@@ -118,6 +151,20 @@ def main() -> None:
         if not patient_id:
             continue
 
+        sbp = clean_int(row[resolved['sbp']]) if 'sbp' in resolved else None
+        dbp = clean_int(row[resolved['dbp']]) if 'dbp' in resolved else None
+        if (sbp is None or dbp is None) and 'bp' in resolved:
+            parsed_sbp, parsed_dbp = parse_bp(row[resolved['bp']])
+            if sbp is None:
+                sbp = parsed_sbp
+            if dbp is None:
+                dbp = parsed_dbp
+
+        raw_payload = {
+            col: clean_cell_value(val)
+            for col, val in row.to_dict().items()
+        }
+
         record = {
             'patient_id': patient_id,
             'hnx': hnx,
@@ -126,10 +173,11 @@ def main() -> None:
             'weight': clean_num(row[resolved['weight']]) if 'weight' in resolved else None,
             'height': clean_num(row[resolved['height']]) if 'height' in resolved else None,
             'bmi': clean_num(row[resolved['bmi']]) if 'bmi' in resolved else None,
-            'sbp': clean_int(row[resolved['sbp']]) if 'sbp' in resolved else None,
-            'dbp': clean_int(row[resolved['dbp']]) if 'dbp' in resolved else None,
+            'sbp': sbp,
+            'dbp': dbp,
             'chief_complaint': str(row[resolved['chief_complaint']]).strip() if 'chief_complaint' in resolved and pd.notna(row[resolved['chief_complaint']]) else None,
             'illness_detail': str(row[resolved['illness_detail']]).strip() if 'illness_detail' in resolved and pd.notna(row[resolved['illness_detail']]) else None,
+            'raw_payload': raw_payload,
             'source': 'import',
         }
         inserts.append(record)

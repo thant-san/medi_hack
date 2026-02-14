@@ -3,7 +3,6 @@ import {
   countPeopleAhead,
   createAppointmentAndQueue,
   createNotification,
-  createPatient,
   createScreeningRecord,
   findPatientByHnx,
   getDoctorById,
@@ -144,7 +143,7 @@ export function PatientPage() {
       setLoading(true);
       const found = await findPatientByHnx(hnx.trim());
       if (!found) {
-        setError('HN not found. Please choose New patient.');
+        setError('HN not found. Please contact registration desk (admin/nurse) to create your patient profile first.');
         return;
       }
 
@@ -196,12 +195,6 @@ export function PatientPage() {
     }
   };
 
-  const startNewPatientFlow = () => {
-    const generated = `NEW-${Math.floor(100000 + Math.random() * 900000)}`;
-    setHnx(generated);
-    setStep('screening');
-  };
-
   const loadDoctorsForSpid = async (spid: string) => {
     const docs = await getDoctorsBySpid(spid);
     setDoctorOptions(docs);
@@ -217,10 +210,10 @@ export function PatientPage() {
       setError(null);
       setLoading(true);
 
-      let currentPatient = patient;
+      const currentPatient = patient;
       if (!currentPatient) {
-        currentPatient = await createPatient(hnx.trim() || `NEW-${Date.now()}`);
-        setPatient(currentPatient);
+        setError('Patient profile is required. Please search with existing HN created by admin/nurse.');
+        return;
       }
 
       await createScreeningRecord({
@@ -267,15 +260,13 @@ export function PatientPage() {
 
       {step === 'choose' && (
         <div className="rounded-xl border bg-white p-5">
-          <p className="mb-4 text-sm text-slate-600">Start your visit</p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <p className="mb-4 text-sm text-slate-600">Start your visit using your registered HN.</p>
+          <div className="grid gap-3 sm:grid-cols-1">
             <button className="rounded-lg border px-4 py-3" onClick={() => setStep('search')}>
               I have HN
             </button>
-            <button className="rounded-lg border px-4 py-3" onClick={startNewPatientFlow}>
-              New patient
-            </button>
           </div>
+          <p className="mt-3 text-xs text-slate-500">New patient registration is handled by admin/nurse at the registration desk.</p>
         </div>
       )}
 

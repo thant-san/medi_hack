@@ -9,20 +9,59 @@ import type {
 } from './types';
 
 export async function findPatientByHnx(hnx: string): Promise<Patient | null> {
+  const normalized = hnx.trim();
+  if (!normalized) return null;
+
   const { data, error } = await supabase
     .from('patients')
     .select('*')
-    .eq('hnx', hnx)
+    .eq('hnx', normalized)
     .maybeSingle();
 
   if (error) throw error;
-  return data;
+  if (data) return data;
+
+  const numeric = Number(normalized);
+  if (!Number.isNaN(numeric)) {
+    const compact = String(numeric);
+    if (compact !== normalized) {
+      const { data: altData, error: altError } = await supabase
+        .from('patients')
+        .select('*')
+        .eq('hnx', compact)
+        .maybeSingle();
+
+      if (altError) throw altError;
+      if (altData) return altData;
+    }
+  }
+
+  const { data: likeData, error: likeError } = await supabase
+    .from('patients')
+    .select('*')
+    .ilike('hnx', normalized)
+    .limit(1)
+    .maybeSingle();
+
+  if (likeError) throw likeError;
+  return likeData;
 }
 
-export async function createPatient(hnx: string, displayName?: string): Promise<Patient> {
+export async function createPatient(payload: {
+  hnx: string;
+  display_name?: string;
+  dob?: string;
+  phone?: string;
+}): Promise<Patient> {
+  const normalizedHnx = payload.hnx.trim();
   const { data, error } = await supabase
     .from('patients')
-    .insert({ hnx, display_name: displayName ?? null })
+    .insert({
+      hnx: normalizedHnx,
+      display_name: payload.display_name?.trim() || null,
+      dob: payload.dob || null,
+      phone: payload.phone?.trim() || null,
+    })
     .select('*')
     .single();
 
@@ -251,32 +290,48 @@ export async function getDashboardStats() {
   startOfDay.setHours(0, 0, 0, 0);
   const startIso = startOfDay.toISOString();
 
-  const [{ data: doctors }, { data: waitingRows }, { data: screeningRows }, { data: cancelledRows }] = await Promise.all([
+  const [doctorsRes, waitingRes, screeningTodayRes, screeningAllRes, cancelledRes] = await Promise.all([
     supabase.from('doctors').select('id,name'),
     supabase.from('queue_entries').select('doctor_id,spid,status').eq('status', 'waiting'),
     supabase.from('screening_records').select('spid,modify_time').gte('modify_time', startIso),
+    supabase.from('screening_records').select('spid,modify_time').order('modify_time', { ascending: false }).limit(5000),
     supabase.from('appointments').select('id').eq('status', 'cancelled').gte('created_at', startIso),
   ]);
 
+  const errors = [doctorsRes.error, waitingRes.error, screeningTodayRes.error, screeningAllRes.error, cancelledRes.error].filter(Boolean);
+  if (errors.length > 0) {
+    const msg = errors[0]?.message ?? 'Failed to load dashboard stats';
+    throw new Error(msg);
+  }
+
+  const doctors = doctorsRes.data ?? [];
+  const waitingRows = waitingRes.data ?? [];
+  const screeningRowsToday = screeningTodayRes.data ?? [];
+  const screeningRowsAll = screeningAllRes.data ?? [];
+  const cancelledRows = cancelledRes.data ?? [];
+
+  const todayCount = screeningRowsToday.length;
+  const screeningRows = todayCount > 0 ? screeningRowsToday : screeningRowsAll;
+
   const doctorNameById = new Map<string, string>();
-  for (const doctor of doctors ?? []) {
+  for (const doctor of doctors) {
     doctorNameById.set(doctor.id, doctor.name);
   }
 
-  const totalWaitingNow = waitingRows?.length ?? 0;
-  const totalVisitsToday = screeningRows?.length ?? 0;
-  const cancelledCount = cancelledRows?.length ?? 0;
+  const totalWaitingNow = waitingRows.length;
+  const totalVisitsToday = screeningRows.length;
+  const cancelledCount = cancelledRows.length;
 
   const bySpidQueue = new Map<string, number>();
   const byDoctorQueue = new Map<string, number>();
-  for (const row of waitingRows ?? []) {
+  for (const row of waitingRows) {
     bySpidQueue.set(row.spid, (bySpidQueue.get(row.spid) ?? 0) + 1);
     byDoctorQueue.set(row.doctor_id, (byDoctorQueue.get(row.doctor_id) ?? 0) + 1);
   }
 
   const bySpidVisits = new Map<string, number>();
   const byHourVisits = new Map<string, number>();
-  for (const row of screeningRows ?? []) {
+  for (const row of screeningRows) {
     const spid = row.spid || 'UNKNOWN';
     bySpidVisits.set(spid, (bySpidVisits.get(spid) ?? 0) + 1);
 

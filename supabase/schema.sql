@@ -23,6 +23,7 @@ create table if not exists public.screening_records (
   dbp int,
   chief_complaint text,
   illness_detail text,
+  raw_payload jsonb,
   source text not null default 'import' check (source in ('import', 'app')),
   created_at timestamptz not null default now()
 );
@@ -342,6 +343,43 @@ with check (
     where p.id = auth.uid() and (p.role = 'admin' or p.doctor_id = public.doctor_patient_map.doctor_id)
   )
 );
+
+-- Demo mode anonymous read policies (for frontend role-switch without auth)
+drop policy if exists "doctors_read_all_anon" on public.doctors;
+create policy "doctors_read_all_anon"
+on public.doctors for select
+to anon
+using (true);
+
+drop policy if exists "screening_read_all_anon" on public.screening_records;
+create policy "screening_read_all_anon"
+on public.screening_records for select
+to anon
+using (true);
+
+drop policy if exists "queue_read_all_anon" on public.queue_entries;
+create policy "queue_read_all_anon"
+on public.queue_entries for select
+to anon
+using (true);
+
+drop policy if exists "appointments_read_all_anon" on public.appointments;
+create policy "appointments_read_all_anon"
+on public.appointments for select
+to anon
+using (true);
+
+drop policy if exists "patients_read_all_anon" on public.patients;
+create policy "patients_read_all_anon"
+on public.patients for select
+to anon
+using (true);
+
+drop policy if exists "doctor_patient_map_read_all_anon" on public.doctor_patient_map;
+create policy "doctor_patient_map_read_all_anon"
+on public.doctor_patient_map for select
+to anon
+using (true);
 
 -- Realtime tables
 do $$
