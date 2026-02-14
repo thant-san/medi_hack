@@ -262,17 +262,20 @@ export function PatientPage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold">Patient Flow</h2>
+      <div className="panel bg-gradient-to-r from-[#fef3c7] to-white p-4">
+        <h2 className="text-xl font-semibold text-[#1b7948]">Patient Portal</h2>
+        <p className="text-sm text-slate-600">Screening, queue tracking, and real-time notifications</p>
+      </div>
       {error && <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
       {step === 'choose' && (
-        <div className="rounded-xl border bg-white p-5">
+        <div className="panel p-5">
           <p className="mb-4 text-sm text-slate-600">Start your visit</p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <button className="rounded-lg border px-4 py-3" onClick={() => setStep('search')}>
+            <button className="btn-primary" onClick={() => setStep('search')}>
               I have HN
             </button>
-            <button className="rounded-lg border px-4 py-3" onClick={startNewPatientFlow}>
+            <button className="btn-outline" onClick={startNewPatientFlow}>
               New patient
             </button>
           </div>
@@ -280,11 +283,11 @@ export function PatientPage() {
       )}
 
       {step === 'search' && (
-        <div className="rounded-xl border bg-white p-5">
+        <div className="panel p-5">
           <label className="text-sm">Enter HN</label>
           <div className="mt-2 flex gap-2">
             <input className="w-full rounded-md border px-3 py-2" value={hnx} onChange={(e) => setHnx(e.target.value)} />
-            <button className="rounded-md bg-brand-600 px-4 py-2 text-white" onClick={searchHn} disabled={loading}>
+            <button className="btn-primary" onClick={searchHn} disabled={loading}>
               {loading ? 'Searching...' : 'Search'}
             </button>
           </div>
@@ -292,19 +295,19 @@ export function PatientPage() {
       )}
 
       {step === 'sameProblem' && patient && (
-        <div className="rounded-xl border bg-white p-5 space-y-3">
+        <div className="panel space-y-3 p-5">
           <p className="text-sm text-slate-600">Found patient HN: {patient.hnx}</p>
           {lastScreening && (
-            <div className="rounded-md bg-slate-50 p-3 text-sm">
+            <div className="rounded-md bg-[#f0fdf4] p-3 text-sm border border-[#bbf7d0]">
               Last clinic: <b>{lastScreening.spid}</b> | Complaint: {lastScreening.chief_complaint ?? '-'}
             </div>
           )}
           <p className="font-medium">Same problem as last time?</p>
           <div className="flex gap-3">
-            <button className="rounded-md bg-brand-600 px-4 py-2 text-white" onClick={proceedSameProblem}>
+            <button className="btn-primary" onClick={proceedSameProblem}>
               Yes, quick follow-up
             </button>
-            <button className="rounded-md border px-4 py-2" onClick={() => setStep('screening')}>
+            <button className="btn-outline" onClick={() => setStep('screening')}>
               No, new screening
             </button>
           </div>
@@ -312,8 +315,8 @@ export function PatientPage() {
       )}
 
       {step === 'screening' && (
-        <div className="rounded-xl border bg-white p-5 space-y-4">
-          <h3 className="font-semibold">Screening Form</h3>
+        <div className="panel space-y-4 p-5">
+          <h3 className="font-semibold text-[#1b7948]">Screening Form</h3>
           <input
             className="w-full rounded-md border px-3 py-2"
             placeholder="Chief complaint"
@@ -360,7 +363,7 @@ export function PatientPage() {
               ))}
             </select>
           </div>
-          <button className="rounded-md bg-brand-600 px-4 py-2 text-white" onClick={submitScreening} disabled={loading}>
+              <button className="btn-primary" onClick={submitScreening} disabled={loading}>
             {loading ? 'Submitting...' : 'Confirm & Join Queue'}
           </button>
         </div>
@@ -368,26 +371,26 @@ export function PatientPage() {
 
       {step === 'dashboard' && patient && (
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-xl border bg-white p-5 lg:col-span-2 space-y-3">
-            <h3 className="font-semibold">Patient Dashboard</h3>
+              <div className="panel space-y-3 p-5 lg:col-span-2">
+                <h3 className="font-semibold text-[#1b7948]">Patient Dashboard</h3>
             <p className="text-sm text-slate-600">HN: {patient.hnx}</p>
             {activeQueue ? (
               <>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-md bg-slate-50 p-3">
+                      <div className="kpi-card">
                     <p className="text-xs text-slate-500">Queue Number</p>
-                    <p className="text-xl font-bold">{activeQueue.queue_number}</p>
+                        <p className="kpi-value">{activeQueue.queue_number}</p>
                   </div>
-                  <div className="rounded-md bg-slate-50 p-3">
+                      <div className="kpi-card">
                     <p className="text-xs text-slate-500">People Ahead</p>
-                    <p className="text-xl font-bold">{peopleAhead}</p>
+                        <p className="kpi-value">{peopleAhead}</p>
                   </div>
-                  <div className="rounded-md bg-slate-50 p-3">
+                      <div className="kpi-card">
                     <p className="text-xs text-slate-500">Doctor Room</p>
-                    <p className="text-xl font-bold">{doctorRoom}</p>
+                        <p className="kpi-value text-[#2563eb]">{doctorRoom}</p>
                   </div>
                 </div>
-                <div className="rounded-md border p-3 text-sm">
+                    <div className="rounded-md border border-[#fde68a] bg-[#fffbeb] p-3 text-sm">
                   Predicted Wait: <b>{prediction?.predicted ?? '-'} min</b>
                   {prediction && (
                     <span className="ml-2 text-slate-500">({prediction.low}-{prediction.high} min)</span>
@@ -402,8 +405,8 @@ export function PatientPage() {
             )}
           </div>
 
-          <div className="rounded-xl border bg-white p-5">
-            <h4 className="mb-2 font-semibold">Notifications</h4>
+              <div className="panel p-5">
+                <h4 className="mb-2 font-semibold text-[#1b7948]">Notifications</h4>
             <div className="space-y-2 text-sm">
               {notifications.map((n) => (
                 <button

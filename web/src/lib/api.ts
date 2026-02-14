@@ -8,6 +8,53 @@ import type {
   ScreeningRecord,
 } from './types';
 
+const aiBaseUrl = import.meta.env.VITE_AI_BASE_URL || 'http://127.0.0.1:8000';
+
+export type AdminCreateUserPayload = {
+  role: 'patient' | 'doctor' | 'admin';
+  id_number: string;
+  full_name: string;
+  password: string;
+  email?: string | null;
+  phone?: string | null;
+  doctor_spid?: string | null;
+  doctor_room_label?: string | null;
+};
+
+export type AdminCreateUserResult = {
+  auth_user_id: string;
+  role: 'patient' | 'doctor' | 'admin';
+  login_email: string;
+  login_id: string;
+  patient_id?: string | null;
+  doctor_id?: string | null;
+};
+
+export async function adminCreateUser(payload: AdminCreateUserPayload): Promise<AdminCreateUserResult> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+
+  if (!accessToken) {
+    throw new Error('Admin session missing. Please login again.');
+  }
+
+  const res = await fetch(`${aiBaseUrl}/admin/create-user`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = (await res.json()) as AdminCreateUserResult | { detail?: string };
+  if (!res.ok) {
+    throw new Error((data as { detail?: string }).detail || 'User creation failed');
+  }
+
+  return data as AdminCreateUserResult;
+}
+
 export async function findPatientByHnx(hnx: string): Promise<Patient | null> {
   const { data, error } = await supabase
     .from('patients')

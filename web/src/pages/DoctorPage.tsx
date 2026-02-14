@@ -82,10 +82,13 @@ export function DoctorPage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold">Doctor Dashboard</h2>
+      <div className="panel bg-gradient-to-r from-[#f0fdf4] to-white p-4">
+        <h2 className="text-xl font-semibold text-[#1b7948]">Doctor Dashboard</h2>
+        <p className="text-sm text-slate-600">Live queue management and patient flow controls</p>
+      </div>
       {error && <p className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
-      <div className="rounded-xl border bg-white p-4 space-y-3">
+      <div className="panel space-y-3 p-4">
         <label className="text-sm">Doctor ID (demo)</label>
         <input
           className="w-full rounded-md border px-3 py-2"
@@ -93,12 +96,18 @@ export function DoctorPage() {
           onChange={(e) => setDoctorId(e.target.value)}
           placeholder="Paste doctor uuid"
         />
-        <button className="rounded-md bg-brand-600 px-4 py-2 text-white" onClick={callNext} disabled={!nextWaiting}>
-          Call Next
-        </button>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <button className="btn-primary" onClick={callNext} disabled={!nextWaiting}>
+            Call Next
+          </button>
+          <div className="kpi-card sm:col-span-2">
+            <div className="kpi-label">Next waiting queue</div>
+            <div className="kpi-value">{nextWaiting ? `#${nextWaiting.queue_number} • ${nextWaiting.spid}` : 'No waiting patient'}</div>
+          </div>
+        </div>
       </div>
 
-      <div className="rounded-xl border bg-white p-4 overflow-x-auto">
+      <div className="panel overflow-x-auto p-4">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b">
@@ -115,10 +124,10 @@ export function DoctorPage() {
                 <td className="p-2">{entry.spid}</td>
                 <td className="p-2">{entry.status}</td>
                 <td className="p-2 space-x-2">
-                  <button className="rounded border px-2 py-1" onClick={() => markInRoom(entry)}>
+                  <button className="btn-outline !px-2 !py-1" onClick={() => markInRoom(entry)}>
                     Mark In Room
                   </button>
-                  <button className="rounded border px-2 py-1" onClick={() => markDone(entry)}>
+                  <button className="btn-gold !px-2 !py-1" onClick={() => markDone(entry)}>
                     Mark Done
                   </button>
                 </td>

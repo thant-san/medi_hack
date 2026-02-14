@@ -7,7 +7,7 @@ from statistics import mean
 from typing import Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from supabase import Client, create_client
@@ -16,10 +16,18 @@ load_dotenv()
 
 app = FastAPI(title='Patient Flow AI Service', version='1.0.0')
 
-allowed_origins = [origin.strip() for origin in os.getenv('ALLOWED_ORIGINS', 'http://localhost:5173').split(',') if origin.strip()]
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        'ALLOWED_ORIGINS',
+        'http://localhost:5173,http://localhost:5501,http://127.0.0.1:5501',
+    ).split(',')
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=r'https?://(localhost|127\.0\.0\.1)(:\d+)?$',
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
@@ -60,6 +68,92 @@ class DailyInsightsRequest(BaseModel):
 class DailyInsightsResponse(BaseModel):
     executive_summary: str
     bullet_actions: list[str]
+
+
+class AdminCreateUserRequest(BaseModel):
+    role: str = Field(pattern='^(patient|doctor|admin)$')
+    id_number: str = Field(min_length=2, max_length=100)
+    full_name: str = Field(min_length=1, max_length=200)
+    password: str = Field(min_length=6, max_length=128)
+    email: str | None = None
+    phone: str | None = None
+    doctor_spid: str | None = None
+    doctor_room_label: str | None = None
+
+
+class AdminCreateUserResponse(BaseModel):
+    auth_user_id: str
+    role: str
+    login_email: str
+    login_id: str
+    patient_id: str | None = None
+    doctor_id: str | None = None
+
+
+def _extract_user_id_from_auth_response(auth_response: Any) -> str:
+    possible_paths = [
+        getattr(auth_response, 'user', None),
+        getattr(getattr(auth_response, 'data', None), 'user', None),
+        getattr(auth_response, 'data', None),
+    ]
+
+    for candidate in possible_paths:
+        if candidate is None:
+            continue
+        user_id = getattr(candidate, 'id', None)
+        if not user_id and isinstance(candidate, dict):
+            user_id = candidate.get('id')
+            if not user_id and isinstance(candidate.get('user'), dict):
+                user_id = candidate['user'].get('id')
+        if user_id:
+            return str(user_id)
+
+    raise HTTPException(status_code=500, detail='Could not read created auth user id')
+
+
+def _normalize_role(value: str) -> str:
+    role = value.strip().lower()
+    if role not in {'patient', 'doctor', 'admin'}:
+        raise HTTPException(status_code=400, detail='Invalid role')
+    return role
+
+
+def _require_admin(authorization: str | None) -> str:
+    if not authorization or not authorization.lower().startswith('bearer '):
+        raise HTTPException(status_code=401, detail='Missing Bearer token')
+
+    access_token = authorization.split(' ', 1)[1].strip()
+    if not access_token:
+        raise HTTPException(status_code=401, detail='Invalid Bearer token')
+
+    sb = get_supabase()
+
+    try:
+        user_response = sb.auth.get_user(access_token)
+    except Exception as ex:
+        raise HTTPException(status_code=401, detail=f'Invalid token: {ex}') from ex
+
+    user_obj = getattr(user_response, 'user', None) or getattr(getattr(user_response, 'data', None), 'user', None)
+    user_id = getattr(user_obj, 'id', None)
+    if not user_id and isinstance(user_obj, dict):
+        user_id = user_obj.get('id')
+
+    if not user_id:
+        raise HTTPException(status_code=401, detail='Could not resolve user from token')
+
+    profile_res = (
+        sb.table('profiles')
+        .select('id,role')
+        .eq('id', user_id)
+        .limit(1)
+        .execute()
+    )
+    profile_rows = profile_res.data or []
+
+    if not profile_rows or profile_rows[0].get('role') != 'admin':
+        raise HTTPException(status_code=403, detail='Admin privileges required')
+
+    return str(user_id)
 
 
 def estimate_service_time(spid: str, hour: int) -> float:
@@ -191,3 +285,105 @@ def daily_insights(payload: DailyInsightsRequest) -> DailyInsightsResponse:
     ]
 
     return DailyInsightsResponse(executive_summary=summary, bullet_actions=actions)
+
+
+@app.post('/admin/create-user', response_model=AdminCreateUserResponse)
+def admin_create_user(
+    payload: AdminCreateUserRequest,
+    authorization: str | None = Header(default=None),
+) -> AdminCreateUserResponse:
+    _require_admin(authorization)
+
+    sb = get_supabase()
+    role = _normalize_role(payload.role)
+    id_number = payload.id_number.strip()
+    full_name = payload.full_name.strip()
+
+    login_email = (payload.email or '').strip().lower() or f'{id_number.lower()}@medihack.local'
+
+    metadata = {
+        'id_number': id_number,
+        'full_name': full_name,
+        'role': role,
+        'phone': (payload.phone or '').strip() or None,
+    }
+
+    try:
+        auth_response = sb.auth.admin.create_user(
+            {
+                'email': login_email,
+                'password': payload.password,
+                'email_confirm': True,
+                'user_metadata': metadata,
+            }
+        )
+    except Exception as ex:
+        raise HTTPException(status_code=400, detail=f'Auth user creation failed: {ex}') from ex
+
+    auth_user_id = _extract_user_id_from_auth_response(auth_response)
+
+    patient_id: str | None = None
+    doctor_id: str | None = None
+
+    try:
+        if role == 'patient':
+            patient_res = (
+                sb.table('patients')
+                .upsert(
+                    {
+                        'hnx': id_number,
+                        'display_name': full_name,
+                        'phone': (payload.phone or '').strip() or None,
+                    },
+                    on_conflict='hnx',
+                )
+                .execute()
+            )
+            patient_rows = patient_res.data or []
+            if not patient_rows:
+                raise HTTPException(status_code=500, detail='Patient row not returned after upsert')
+            patient_id = str(patient_rows[0]['id'])
+
+        elif role == 'doctor':
+            spid = (payload.doctor_spid or '').strip() or 'GENERAL'
+            room_label = (payload.doctor_room_label or '').strip() or None
+            doctor_res = (
+                sb.table('doctors')
+                .insert(
+                    {
+                        'name': full_name,
+                        'spid': spid,
+                        'room_label': room_label,
+                        'is_active': True,
+                    }
+                )
+                .execute()
+            )
+            doctor_rows = doctor_res.data or []
+            if not doctor_rows:
+                raise HTTPException(status_code=500, detail='Doctor row not returned after insert')
+            doctor_id = str(doctor_rows[0]['id'])
+
+        profile_payload: dict[str, Any] = {
+            'id': auth_user_id,
+            'role': role,
+            'patient_id': patient_id,
+            'doctor_id': doctor_id,
+        }
+
+        sb.table('profiles').upsert(profile_payload, on_conflict='id').execute()
+    except Exception as ex:
+        try:
+            sb.auth.admin.delete_user(auth_user_id)
+        except Exception:
+            pass
+        raise HTTPException(status_code=400, detail=f'Profile/domain row creation failed: {ex}') from ex
+
+    return AdminCreateUserResponse(
+        auth_user_id=auth_user_id,
+        role=role,
+        login_email=login_email,
+        login_id=id_number,
+        patient_id=patient_id,
+        doctor_id=doctor_id,
+    )

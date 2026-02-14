@@ -24,15 +24,17 @@ export function LandingPage({ onRoleChange, demoMode, onDemoModeChange }: Props)
   };
 
   return (
-    <div className="mx-auto max-w-xl rounded-xl border bg-white p-6 shadow-sm">
-      <h1 className="text-2xl font-semibold">Hackathon Demo Entry</h1>
-      <p className="mt-2 text-sm text-slate-600">Choose role and start demo flow.</p>
+    <div className="mx-auto max-w-2xl panel p-6 md:p-8">
+      <h1 className="text-2xl font-semibold text-[#1b7948]">Hackathon Demo Entry</h1>
+      <p className="mt-2 text-sm text-slate-600">Patient Flow Analytics • Role Selection</p>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         {(['patient', 'doctor', 'admin'] as Role[]).map((role) => (
           <button
             key={role}
-            className={`rounded-lg border px-3 py-2 text-sm capitalize ${selectedRole === role ? 'border-brand-600 bg-brand-50 text-brand-700' : ''}`}
+            className={`rounded-lg border px-3 py-2 text-sm capitalize transition ${
+              selectedRole === role ? 'border-[#1b7948] bg-[#f0fdf4] text-[#1b7948] font-semibold' : 'border-slate-200 bg-white'
+            }`}
             onClick={() => setSelectedRole(role)}
           >
             {role}
@@ -47,7 +49,7 @@ export function LandingPage({ onRoleChange, demoMode, onDemoModeChange }: Props)
 
       <button
         onClick={enter}
-        className="mt-6 w-full rounded-lg bg-brand-600 px-4 py-2 text-white transition hover:bg-brand-500"
+        className="btn-primary mt-6 w-full"
       >
         Enter App
       </button>

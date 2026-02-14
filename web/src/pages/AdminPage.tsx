@@ -13,7 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 import { generateDailyInsights } from '../lib/ai';
-import { getDashboardStats, getPatientHistory } from '../lib/api';
+import { adminCreateUser, getDashboardStats, getPatientHistory } from '../lib/api';
 
 export function AdminPage() {
   const [stats, setStats] = useState<Awaited<ReturnType<typeof getDashboardStats>> | null>(null);
@@ -26,6 +26,17 @@ export function AdminPage() {
   const [insightText, setInsightText] = useState('');
   const [actions, setActions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const [createRole, setCreateRole] = useState<'patient' | 'doctor' | 'admin'>('patient');
+  const [createIdNumber, setCreateIdNumber] = useState('');
+  const [createFullName, setCreateFullName] = useState('');
+  const [createPassword, setCreatePassword] = useState('');
+  const [createEmail, setCreateEmail] = useState('');
+  const [createPhone, setCreatePhone] = useState('');
+  const [createDoctorSpid, setCreateDoctorSpid] = useState('');
+  const [createDoctorRoom, setCreateDoctorRoom] = useState('');
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createResult, setCreateResult] = useState<string | null>(null);
 
   const loadStats = async () => {
     setLoadingStats(true);
@@ -79,16 +90,61 @@ export function AdminPage() {
     }
   };
 
+  const submitCreateUser = async () => {
+    if (!createIdNumber.trim() || !createFullName.trim() || createPassword.length < 6) {
+      setError('Please fill required user fields and set password >= 6 chars.');
+      return;
+    }
+
+    if (createRole === 'doctor' && !createDoctorSpid.trim()) {
+      setError('Doctor role requires SPID.');
+      return;
+    }
+
+    setCreateLoading(true);
+    setError(null);
+    setCreateResult(null);
+
+    try {
+      const created = await adminCreateUser({
+        role: createRole,
+        id_number: createIdNumber.trim(),
+        full_name: createFullName.trim(),
+        password: createPassword,
+        email: createEmail.trim() || null,
+        phone: createPhone.trim() || null,
+        doctor_spid: createRole === 'doctor' ? createDoctorSpid.trim() || null : null,
+        doctor_room_label: createRole === 'doctor' ? createDoctorRoom.trim() || null : null,
+      });
+
+      setCreateResult(`Created ${created.role} | Login ID: ${created.login_id} | Login Email: ${created.login_email}`);
+      setCreateIdNumber('');
+      setCreateFullName('');
+      setCreatePassword('');
+      setCreateEmail('');
+      setCreatePhone('');
+      setCreateDoctorSpid('');
+      setCreateDoctorRoom('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create user.');
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold">Executive Dashboard</h2>
+      <div className="panel bg-gradient-to-r from-[#fef3c7] to-white p-4">
+        <h2 className="text-xl font-semibold text-[#1b7948]">Executive Dashboard</h2>
+        <p className="text-sm text-slate-600">Real-time monitoring, performance analytics, and AI daily summary</p>
+      </div>
       {error && <p className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
       <div className="grid gap-3 md:grid-cols-4">
-        <button className="rounded-lg bg-brand-600 px-4 py-2 text-white" onClick={loadStats} disabled={loadingStats}>
+        <button className="btn-primary" onClick={loadStats} disabled={loadingStats}>
           {loadingStats ? 'Refreshing...' : 'Refresh KPI'}
         </button>
-        <button className="rounded-lg border px-4 py-2" onClick={generateSummary} disabled={!stats || insightLoading}>
+        <button className="btn-gold" onClick={generateSummary} disabled={!stats || insightLoading}>
           {insightLoading ? 'Generating...' : 'Generate AI Summary'}
         </button>
       </div>
@@ -103,8 +159,8 @@ export function AdminPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border bg-white p-4">
-          <h3 className="mb-3 font-semibold">Queue by Doctor</h3>
+        <div className="panel p-4">
+          <h3 className="mb-3 font-semibold text-[#1b7948]">Queue by Doctor</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats?.byDoctor ?? []}>
@@ -112,26 +168,26 @@ export function AdminPage() {
                 <XAxis dataKey="doctor_name" interval={0} angle={-20} textAnchor="end" height={70} />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="queue" fill="#2563eb" />
+                <Bar dataKey="queue" fill="#1b7948" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="rounded-xl border bg-white p-4">
-          <h3 className="mb-3 font-semibold">SPID Volume Breakdown</h3>
+        <div className="panel p-4">
+          <h3 className="mb-3 font-semibold text-[#1b7948]">SPID Volume Breakdown</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={stats?.bySpid ?? []} dataKey="visits" nameKey="spid" outerRadius={90} fill="#1d4ed8" label />
+                <Pie data={stats?.bySpid ?? []} dataKey="visits" nameKey="spid" outerRadius={90} fill="#c5951d" label />
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="rounded-xl border bg-white p-4 lg:col-span-2">
-          <h3 className="mb-3 font-semibold">Hourly Visit Trend</h3>
+        <div className="panel p-4 lg:col-span-2">
+          <h3 className="mb-3 font-semibold text-[#1b7948]">Hourly Visit Trend</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={stats?.hourlyTrend ?? []}>
@@ -139,15 +195,15 @@ export function AdminPage() {
                 <XAxis dataKey="hour" />
                 <YAxis />
                 <Tooltip />
-                <Line type="monotone" dataKey="visits" stroke="#2563eb" strokeWidth={2} />
+                <Line type="monotone" dataKey="visits" stroke="#1b7948" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border bg-white p-4 space-y-3">
-        <h3 className="font-semibold">Patient Search by HN</h3>
+      <div className="panel space-y-3 p-4">
+        <h3 className="font-semibold text-[#1b7948]">Patient Search by HN</h3>
         <div className="flex gap-2">
           <input
             className="w-full rounded-md border px-3 py-2"
@@ -155,7 +211,7 @@ export function AdminPage() {
             onChange={(e) => setHnxSearch(e.target.value)}
             placeholder="Search HN"
           />
-          <button className="rounded-md border px-4 py-2" onClick={loadHistory}>
+          <button className="btn-outline" onClick={loadHistory}>
             Search
           </button>
         </div>
@@ -172,9 +228,78 @@ export function AdminPage() {
         )}
       </div>
 
+      <div className="panel space-y-3 p-4">
+        <h3 className="font-semibold text-[#1b7948]">Create User (Admin)</h3>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="space-y-1 text-sm">
+            <span>Role</span>
+            <select
+              className="w-full rounded-md border px-3 py-2"
+              value={createRole}
+              onChange={(e) => setCreateRole(e.target.value as 'patient' | 'doctor' | 'admin')}
+            >
+              <option value="patient">Patient</option>
+              <option value="doctor">Doctor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+
+          <label className="space-y-1 text-sm">
+            <span>ID Number</span>
+            <input className="w-full rounded-md border px-3 py-2" value={createIdNumber} onChange={(e) => setCreateIdNumber(e.target.value)} />
+          </label>
+
+          <label className="space-y-1 text-sm">
+            <span>Full Name</span>
+            <input className="w-full rounded-md border px-3 py-2" value={createFullName} onChange={(e) => setCreateFullName(e.target.value)} />
+          </label>
+
+          <label className="space-y-1 text-sm">
+            <span>Password</span>
+            <input
+              type="password"
+              className="w-full rounded-md border px-3 py-2"
+              value={createPassword}
+              onChange={(e) => setCreatePassword(e.target.value)}
+            />
+          </label>
+
+          <label className="space-y-1 text-sm">
+            <span>Email (optional)</span>
+            <input className="w-full rounded-md border px-3 py-2" value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} />
+          </label>
+
+          <label className="space-y-1 text-sm">
+            <span>Phone (optional)</span>
+            <input className="w-full rounded-md border px-3 py-2" value={createPhone} onChange={(e) => setCreatePhone(e.target.value)} />
+          </label>
+
+          {createRole === 'doctor' && (
+            <>
+              <label className="space-y-1 text-sm">
+                <span>Doctor SPID</span>
+                <input className="w-full rounded-md border px-3 py-2" value={createDoctorSpid} onChange={(e) => setCreateDoctorSpid(e.target.value)} />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span>Doctor Room</span>
+                <input className="w-full rounded-md border px-3 py-2" value={createDoctorRoom} onChange={(e) => setCreateDoctorRoom(e.target.value)} />
+              </label>
+            </>
+          )}
+        </div>
+
+        <div className="flex gap-3">
+          <button className="btn-primary" onClick={submitCreateUser} disabled={createLoading}>
+            {createLoading ? 'Creating...' : 'Create User'}
+          </button>
+        </div>
+
+        {createResult && <p className="rounded-md border border-green-200 bg-green-50 p-2 text-sm text-green-700">{createResult}</p>}
+      </div>
+
       {insightText && (
-        <div className="rounded-xl border bg-white p-4 space-y-3">
-          <h3 className="font-semibold">AI Daily Executive Insight</h3>
+        <div className="panel space-y-3 p-4">
+          <h3 className="font-semibold text-[#1b7948]">AI Daily Executive Insight</h3>
           <p className="whitespace-pre-line text-sm text-slate-700">{insightText}</p>
           <ul className="list-disc pl-5 text-sm">
             {actions.map((item) => (
@@ -189,9 +314,9 @@ export function AdminPage() {
 
 function Card({ title, value }: { title: string; value: string | number }) {
   return (
-    <div className="rounded-xl border bg-white p-4">
-      <p className="text-xs text-slate-500">{title}</p>
-      <p className="mt-1 text-xl font-bold">{value}</p>
+    <div className="kpi-card">
+      <p className="kpi-label">{title}</p>
+      <p className="kpi-value">{value}</p>
     </div>
   );
 }

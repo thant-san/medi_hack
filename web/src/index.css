@@ -2,7 +2,79 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --mfu-green: #1b7948;
+  --mfu-green-soft: #f0fdf4;
+  --mfu-gold: #c5951d;
+  --mfu-gold-soft: #fef3c7;
+  --mfu-blue: #2563eb;
+  --surface: #ffffff;
+  --surface-soft: #f8fafc;
+  --text-main: #1f2937;
+  --text-sub: #6b7280;
+  --border-soft: #e5e7eb;
+}
+
 body {
   margin: 0;
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-family: Sarabun, Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--surface-soft);
+  color: var(--text-main);
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.btn-primary {
+  background: var(--mfu-green);
+  color: white;
+  border: 1px solid var(--mfu-green);
+  border-radius: 10px;
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: #16653c;
+}
+
+.btn-gold {
+  background: var(--mfu-gold);
+  color: white;
+  border: 1px solid var(--mfu-gold);
+  border-radius: 10px;
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+}
+
+.btn-outline {
+  background: white;
+  color: var(--text-main);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+}
+
+.kpi-card {
+  border-radius: 12px;
+  border: 1px solid var(--border-soft);
+  background: white;
+  padding: 1rem;
+}
+
+.kpi-label {
+  color: var(--text-sub);
+  font-size: 0.85rem;
+}
+
+.kpi-value {
+  margin-top: 0.25rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--mfu-green);
 }
