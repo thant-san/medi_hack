@@ -39,7 +39,7 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env
-# fill SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
+# fill SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and GEMINI_API_KEY
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
